@@ -6,6 +6,8 @@ import { PORTFOLIO_DATA } from "@/data/portfolioData";
 import { TiltCard } from "@/components/TiltCard";
 import { soundFx } from "@/utils/soundFx";
 
+const FORMSPREE_URL = "https://formspree.io/f/xgakpdew";
+
 export default function ContactPage() {
   const { lang } = useLanguage();
   const { system, about, experience, education, certifications, languages } =
@@ -16,7 +18,9 @@ export default function ContactPage() {
   const [senderEmail, setSenderEmail] = useState("");
   const [subject, setSubject] = useState<"job" | "project" | "photo">("job");
   const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle"
+  );
 
   const copyText = async (text: string, field: "email" | "phone") => {
     soundFx.playClick();
@@ -34,17 +38,43 @@ export default function ContactPage() {
     window.print();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!senderName.trim() || !senderEmail.trim() || !message.trim()) return;
+
     soundFx.playClick();
-    setSubmitted(true);
+    setStatus("sending");
+
+    try {
+      const response = await fetch(FORMSPREE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: senderName,
+          email: senderEmail,
+          topic: subject.toUpperCase(),
+          message,
+          _subject: `[Portfolio - ${subject.toUpperCase()}] ${senderName}`,
+        }),
+      });
+
+      if (response.ok) {
+        setStatus("sent");
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (
     <div className="space-y-12">
       {/* ============================================================
-          1. PAGE HEADER
+1. PAGE HEADER
          ============================================================ */}
       <section className="space-y-4 border-b border-white/10 pb-8 print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-neutral-400">
@@ -66,7 +96,7 @@ export default function ContactPage() {
       </section>
 
       {/* ============================================================
-          2. DIRECT CHANNELS & MESSAGE TERMINAL (2 COLUMNS)
+2. DIRECT CHANNELS & MESSAGE TERMINAL (2 COLUMNS)
          ============================================================ */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-12 print:hidden">
         {/* Left: Direct Coordinates & Socials (5 cols) */}
@@ -164,40 +194,40 @@ export default function ContactPage() {
           <div className="rounded-2xl border border-white/10 bg-neutral-950/90 p-6 sm:p-8">
             <div className="mb-5 flex items-center justify-between border-b border-white/10 pb-3 font-mono text-xs text-neutral-400">
               <span>02 // MESSAGE TERMINAL</span>
-              <span>SMTP_READY</span>
+              <span className="text-emerald-400">FORMSPREE_LIVE</span>
             </div>
 
-            {submitted ? (
+            {status === "sent" ? (
               <div className="space-y-4 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.05] p-6">
                 <p className="font-mono text-xs font-bold uppercase tracking-widest text-emerald-400">
-                  {lang === "fr" ? "TRANSMISSION RÉUSSIE ✓" : "TRANSMISSION SENT ✓"}
+                  {lang === "fr" ? "MESSAGE ENVOYÉ ✓" : "MESSAGE DELIVERED ✓"}
                 </p>
                 <p className="text-sm text-neutral-200">
                   {lang === "fr"
-                    ? `Merci ${senderName}. Votre message a été préparé. Vous pouvez également envoyer directement un e-mail à ${system.email}.`
-                    : `Thank you ${senderName}. Your message is ready. You can also send a direct email to ${system.email}.`}
+                    ? `Merci ${senderName}. Votre message a bien été transmis directement à ${system.name}.`
+                    : `Thank you ${senderName}. Your message has been delivered directly to ${system.name}.`}
                 </p>
                 <div className="flex flex-wrap gap-3 pt-2">
-                  <a
-                    href={`mailto:${system.email}?subject=${encodeURIComponent(
-                      `[Portfolio - ${subject.toUpperCase()}] ${senderName}`
-                    )}&body=${encodeURIComponent(message)}`}
-                    className="rounded-full bg-white px-5 py-2 font-mono text-xs font-bold text-black"
-                  >
-                    {lang === "fr" ? "Ouvrir dans Mail ↗" : "Open in Mail App ↗"}
-                  </a>
                   <button
                     type="button"
                     onClick={() => {
-                      setSubmitted(false);
+                      setStatus("idle");
                       setSenderName("");
                       setSenderEmail("");
                       setMessage("");
                     }}
-                    className="rounded-full border border-white/20 px-4 py-2 font-mono text-xs text-neutral-300"
+                    className="rounded-full bg-white px-5 py-2 font-mono text-xs font-bold text-black transition hover:bg-neutral-200"
                   >
-                    {lang === "fr" ? "Nouveau message" : "Reset form"}
+                    {lang === "fr" ? "Nouveau message" : "Send another message"}
                   </button>
+                  <a
+                    href={`mailto:${system.email}?subject=${encodeURIComponent(
+                      `[Portfolio - ${subject.toUpperCase()}] ${senderName}`
+                    )}&body=${encodeURIComponent(message)}`}
+                    className="rounded-full border border-white/20 px-4 py-2 font-mono text-xs text-neutral-300 transition hover:bg-white hover:text-black"
+                  >
+                    {lang === "fr" ? "Ouvrir dans Mail ↗" : "Open in Mail App ↗"}
+                  </a>
                 </div>
               </div>
             ) : (
@@ -241,6 +271,7 @@ export default function ContactPage() {
                     </label>
                     <input
                       type="text"
+                      name="name"
                       required
                       value={senderName}
                       onChange={(e) => setSenderName(e.target.value)}
@@ -255,6 +286,7 @@ export default function ContactPage() {
                     </label>
                     <input
                       type="email"
+                      name="email"
                       required
                       value={senderEmail}
                       onChange={(e) => setSenderEmail(e.target.value)}
@@ -269,6 +301,7 @@ export default function ContactPage() {
                     MESSAGE
                   </label>
                   <textarea
+                    name="message"
                     rows={4}
                     required
                     value={message}
@@ -282,13 +315,28 @@ export default function ContactPage() {
                   />
                 </div>
 
+                {status === "error" && (
+                  <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 font-mono text-xs text-red-300">
+                    {lang === "fr"
+                      ? `Échec de l'envoi. Réessayez ou écrivez directement à ${system.email}.`
+                      : `Delivery failed. Please try again or email ${system.email} directly.`}
+                  </p>
+                )}
+
                 <button
                   type="submit"
+                  disabled={status === "sending"}
                   data-cursor="badge"
                   data-cursor-label="SEND"
-                  className="w-full rounded-full bg-white py-3 font-mono text-xs font-bold uppercase tracking-widest text-black transition hover:bg-neutral-200"
+                  className="w-full rounded-full bg-white py-3 font-mono text-xs font-bold uppercase tracking-widest text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {lang === "fr" ? "Envoyer le message →" : "Transmit message →"}
+                  {status === "sending"
+                    ? lang === "fr"
+                      ? "Envoi en cours..."
+                      : "Transmitting..."
+                    : lang === "fr"
+                    ? "Envoyer le message →"
+                    : "Transmit message →"}
                 </button>
               </form>
             )}
@@ -297,7 +345,7 @@ export default function ContactPage() {
       </section>
 
       {/* ============================================================
-          3. INTERACTIVE PRINTABLE CV SHEET (EXPORTABLE AS PDF)
+3. INTERACTIVE PRINTABLE CV SHEET (EXPORTABLE AS PDF)
          ============================================================ */}
       <section className="space-y-6 rounded-2xl border border-white/15 bg-neutral-950 p-6 sm:p-8 print:border-none print:bg-white print:p-0 print:text-black">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5 print:border-neutral-300">
@@ -337,7 +385,10 @@ export default function ContactPage() {
               {lang === "fr" ? "EXPÉRIENCES PROFESSIONNELLES" : "WORK EXPERIENCE"}
             </h3>
             {experience.map((exp) => (
-              <div key={exp.id} className="space-y-1 border-l border-white/15 pl-3.5 print:border-neutral-400">
+              <div
+                key={exp.id}
+                className="space-y-1 border-l border-white/15 pl-3.5 print:border-neutral-400"
+              >
                 <p className="text-sm font-bold text-white print:text-black">
                   {exp.role[lang]} — {exp.organization}
                 </p>
